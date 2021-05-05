@@ -1,0 +1,187 @@
+---
+title: "Unraveling immune related lncRNAs in breast cancer molecular subtypes"
+author: "Carolina Mathias, João Carlos Degraf Muzzi, Bruna Borba Antunes, Daniela F. Gradia, Mauro A. A. Castro and Jaqueline C. de Oliveira"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+geometry: margin=1.5cm
+papersize: a4
+---
+
+# Data Preprocessing
+
+First, we will access the gene expression matrix for TCGA-BRCA cohort available in XenaBrowser. Then, samples barcodes are merged with survival data and immune subtype classification present in Thorsson et al. (2018) master table.
+
+```{r libraries, message=F, warning=F}
+# Load Libraries
+library(tidyverse)
+library(biomaRt)
+
+```
+
+```{r download-xena, message=F, warning=F}
+# Download Gene expression matrix from XenaBrowser
+repo_link <- "https://xenabrowser.net/datapages/"
+name.file <- "?dataset=TCGA-BRCA.htseq_fpkm.tsv&host=https%3A%2F%2Fgdc.xenahubs.net&removeHub=https%3A%2F%2Fxena.treehouse.gi.ucsc.edu%3A443"
+download.file(url = paste0(repo_link,name.file),
+              destfile = "TCGA-BRCA.htseq_fpkm.tsv.gz")
+
+rna <- read.table(gzfile("TCGA-BRCA.htseq_fpkm.tsv.gz"))
+# Defining row and column names
+rownames(rna) <- rna[,1]
+colnames(rna) <- rna[1,]
+rna <- rna[-1,-1]
+# Selecting first 15 characters from TCGA participants barcode
+rownames(rna) <- substr(rownames(rna), 1, 15)
+```
+
+```{r Biomart, message=F, warning=F, results=F}
+# Separating lncRNAs and protein coding genes from the gene expression matrix from biomaRt
+mart <- useMart(biomart = "ensembl", 
+                dataset = "hsapiens_gene_ensembl")
+gene.names <- getBM(attributes = c("ensembl_gene_id",
+                                     "hgnc_symbol","external_gene_name",
+                                     "gene_biotype"), 
+           filters = "ensembl_gene_id", 
+           values = rownames(rna),
+           bmHeader = T, 
+           mart = mart)
+longos.names <- subset(gene.names, gene.names$`Gene type`=="lncRNA")
+longos.names$symbol.ens <- ifelse(longos.names$`HGNC symbol`=="",
+                                longos.names$`Gene name`,
+                                longos.names$`HGNC symbol`)
+# Filtering gene expression matrix for lncRNAs
+rna_lnc <- rna[longos.names$`Gene stable ID`,]
+
+# Filtering for Proteing coding genes
+gene.names <- subset(gene.names, gene.names$`Gene type`=="protein_coding")
+rna <- rna[gene.names$`Gene stable ID`,]
+
+rm(mart)
+```
+
+```{r thorsson-data-set, message=F, warning=F, results=F}
+## Download Thorsson et al (2018) data set
+ repo_link <- "https://www.cell.com/cms/10.1016/j.immuni.2018.03.023/attachment/"
+ name.file <- "1b63d4bc-af31-4a23-99bb-7ca23c7b4e0a/mmc2.xlsx"
+ download.file(
+   url= paste0(repo_link,name.file),
+   destfile = "thorsson2018.xlsx")
+thorsson <- data.frame(readxl::read_xlsx(path= "thorsson2018.xlsx"))
+
+## Selecting BRCA patients
+thorsson <- thorsson[thorsson$TCGA.Study=="BRCA",]
+rownames(thorsson) <- thorsson$TCGA.Participant.Barcode
+patients <- colnames(rna_lnc)
+# Selecting primary tumor samples - 01A
+patients <- patients[grepl("01A$", patients)]
+patients <- substr(patients, 1, nchar(patients)-4)
+# Checking if there are duplicated barcodes
+patients[duplicated(patients)] #0
+# Filtering Thorsson data set for primary samples
+thorsson <- thorsson[rownames(thorsson) %in% patients,]
+# Preparing Thorsson Data set
+thorsson$Immune.Subtype <- factor(thorsson$Immune.Subtype,
+                                  levels = c("C1","C2","C3","C4","C5","C6"))
+rownames(thorsson) <- thorsson$TCGA.Participant.Barcode
+thorsson <- thorsson[thorsson$TCGA.Subtype!="NA",]
+thorsson[,5:64] <- lapply(thorsson[,5:64], as.numeric)
+```
+
+```{r filter-rna-by-barcode, message=F, warning=F, results=F}
+
+### Filtering non-tumoral samples
+patients <- colnames(rna_lnc)
+patients <- substr(patients, nchar(patients)-2, nchar(patients))
+unique(patients) # [1] "01A" "11A" "01B" "11B" "01C" "06A"
+
+patients <- colnames(rna_lnc)
+# Selecting Non-tumoral Samples (-11 ending barcodes)
+patients <- patients[grepl("11A$", patients) | grepl("11B$", patients)]
+patients2 <- substr(patients, 1, nchar(patients)-4)
+# Checking for duplicates
+patients2[duplicated(patients2)] #0
+# Preparing data.frame with non-tumoral samples
+rna_healthy <- rna[,patients]
+rna_lnc_healthy <- rna_lnc[,patients]
+
+# Filtering RNA-seq matrix for patients barcode
+patients <- colnames(rna_lnc)
+# Selecting Primary tumor samples -01A in gene expression matrix
+patients <- patients[grepl("01A$", patients)]
+rna <- rna[,patients]
+rna_lnc <- rna_lnc[,patients]
+colnames(rna) <- substr(colnames(rna),1, nchar(colnames(rna))-4)
+colnames(rna_lnc) <- substr(colnames(rna_lnc),1, nchar(colnames(rna_lnc))-4)
+
+#Adapting Thorsson's data set barcode to merge with gene expression matrix
+thorsson$TCGA.Participant.Barcode <- gsub("-",".", thorsson$TCGA.Participant.Barcode)
+
+#Selecting patients for proteing coding genes
+rna <- rna[,rownames(thorsson)]
+genes <- rownames(rna)
+rna <- data.frame(lapply(rna, as.numeric))
+rownames(rna) <- genes
+#Selecting patients for lncRNAs
+rna_lnc <- rna_lnc[,rownames(thorsson)]
+genes <- rownames(rna_lnc)
+rna_lnc <- data.frame(lapply(rna_lnc,as.numeric))
+rownames(rna_lnc) <- genes
+
+# Saving pre-processed data
+gexp <- list(lnc.Names= longos.names,
+             gene.names= gene.names,
+             mRNA.Tumor = rna, 
+             mRNA.Healthy= rna_healthy,
+             lncRNA.Tumor = rna_lnc,
+             lncRNA.Healthy= rna_lnc_healthy)
+save(gexp, file="gexp_BRCA.RData")
+save(thorsson, file = "thorsson_BRCA.RData")
+
+```
+
+```{r r-session}
+sessionInfo()
+
+# R version 4.0.5 (2021-03-31)
+# Platform: x86_64-pc-linux-gnu (64-bit)
+# Running under: Ubuntu 20.04.2 LTS
+# 
+# Matrix products: default
+# BLAS:   /usr/lib/x86_64-linux-gnu/blas/libblas.so.3.9.0
+# LAPACK: /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3.9.0
+# 
+# locale:
+#  [1] LC_CTYPE=pt_BR.UTF-8       LC_NUMERIC=C               LC_TIME=pt_BR.UTF-8       
+#  [4] LC_COLLATE=en_US.UTF-8     LC_MONETARY=pt_BR.UTF-8    LC_MESSAGES=en_US.UTF-8   
+#  [7] LC_PAPER=pt_BR.UTF-8       LC_NAME=C                  LC_ADDRESS=C              
+# [10] LC_TELEPHONE=C             LC_MEASUREMENT=pt_BR.UTF-8 LC_IDENTIFICATION=C       
+# 
+# attached base packages:
+# [1] stats     graphics  grDevices utils     datasets  methods   base     
+# 
+# other attached packages:
+# [1] forcats_0.5.1   stringr_1.4.0   dplyr_1.0.5     purrr_0.3.4     readr_1.4.0     tidyr_1.1.3    
+# [7] tibble_3.1.1    ggplot2_3.3.3   tidyverse_1.3.1
+# 
+# loaded via a namespace (and not attached):
+#  [1] httr_1.4.2          jsonlite_1.7.2      modelr_0.1.8        assertthat_0.2.1    cellranger_1.1.0   
+#  [6] yaml_2.2.1          datapasta_3.1.0     pillar_1.6.0        backports_1.2.1     glue_1.4.2         
+# [11] limma_3.46.0        digest_0.6.27       RColorBrewer_1.1-2  DataExplorer_0.8.2  rvest_1.0.0        
+# [16] colorspace_2.0-0    htmltools_0.5.1.1   clipr_0.7.1         pkgconfig_2.0.3     broom_0.7.6        
+# [21] haven_2.4.1         scales_1.1.1        openxlsx_4.2.3      generics_0.1.0      farver_2.1.0       
+# [26] ellipsis_0.3.2      ggunchained_0.0.1   withr_2.4.2         cli_2.5.0           magrittr_2.0.1     
+# [31] crayon_1.4.1        readxl_1.3.1        evaluate_0.14       fs_1.5.0            fansi_0.4.2        
+# [36] xml2_1.3.2          ggthemes_4.2.4      tools_4.0.5         data.table_1.14.0   hms_1.0.0          
+# [41] GlobalOptions_0.1.2 lifecycle_1.0.0     munsell_0.5.0       reprex_2.0.0        zip_2.1.1          
+# [46] writexl_1.4.0       networkD3_0.4       compiler_4.0.5      rlang_0.4.10        grid_4.0.5         
+# [51] rstudioapi_0.13     htmlwidgets_1.5.3   circlize_0.4.12     igraph_1.2.6        labeling_0.4.2     
+# [56] rmarkdown_2.7       gtable_0.3.0        DBI_1.1.1           R6_2.5.0            gridExtra_2.3      
+# [61] lubridate_1.7.10    knitr_1.33          utf8_1.2.1          shape_1.4.5         stringi_1.5.3      
+# [66] parallel_4.0.5      Rcpp_1.0.6          vctrs_0.3.8         dbplyr_2.1.1        tidyselect_1.1.1   
+# [71] xfun_0.22   
+
+```
+
