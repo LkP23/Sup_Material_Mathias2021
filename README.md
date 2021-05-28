@@ -27,21 +27,15 @@ library(msigdbr)
 
 ```r
 # Import preprocessed Thorsson et al (2018) data set
-repo_link <- ""
-name.file <- ""
+repo_link <- "https://github.com/sysbiolab/Sup_Material_Mathias2021/"
+name.file <- "blob/main/thorsson_BRCA.RData"
 download.file(
    url= paste0(repo_link,name.file),
    destfile = "thorsson_BRCA.RData")
  
 load("thorsson_BRCA.RData")
  
-# Import gene expression matrix
-repo_link <- ""
-name.file <- ""
-download.file(
-   url= paste0(repo_link,name.file),
-   destfile = "gexp_BRCA.RData")
-
+# Loading gene expression matrix saved in Preprocess_BRCA.Rmd
 load("gexp_BRCA.RData")
 
 longos.names <- gexp$lnc.Names
