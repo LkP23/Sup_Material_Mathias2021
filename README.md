@@ -35,7 +35,7 @@ download.file(
  
 load("thorsson_BRCA.RData")
  
-# Loading gene expression matrix saved in Preprocess_BRCA.Rmd
+# Loading gene expression matrix saved in BRCA_preprocessing.Rmd
 load("gexp_BRCA.RData")
 
 longos.names <- gexp$lnc.Names
