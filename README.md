@@ -8,7 +8,7 @@ Context
 ----
 The immune subtype classification presented by Thorsson and colleagues (2018) using mRNA represented a mark in immuno-oncology. In Mathias et al., 2021, we add the complexity of lncRNAs to this characterization. We show that lncRNAs may add valuable information on the immune and molecular subtypes characterization in breast cancer and we present a signature composed by 10 to 11 lncRNAs for each molecular subtype associated with the immune subtypes and immune features. These signatures highlight little-known and some better-studied lncRNAs that may help guide future studies on possible biomarkers for therapeutic design and patients’ selection for clinical trials. This script reproduces all results published in Mathias et al. (2021) and serves as complementary material.
 
-In Preprocessing.Rmd file, we show how to obtain and preprocess the gene expression matrix and Thorsson et al. (2018) master table used in this study. At the end of the section the objects are saved as RData and can be imported for further analysis. Here we use the preprocessed data and show the steps for data analysis and how to obtain the results and plots shown in Mathias et al. (2021). 
+In Preprocessing.Rmd file, we show how to obtain and preprocess the gene expression matrix and Thorsson et al. (2018) master table used in this study. At the end of the section the objects are saved as RData and can be imported for further analysis. Here we use the preprocessed data and show the steps for data analysis and how to obtain the results and plots shown in Mathias et al. (2021). Please, first run the BRCA_preprocessing.Rmd script and then the code below.
 
 Loading packages and pre-process data
 ----
